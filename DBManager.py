@@ -1,4 +1,5 @@
 from neo4j.v1 import GraphDatabase
+import json
 
 class DataBaseManageer(object):
     uri = "bolt://localhost:7687"
@@ -15,10 +16,10 @@ class DataBaseManageer(object):
 
     # @typeNode: tipo del nodo, "firts_word" o "second_word"
     # @nameNode: nombre del nodo, la palabra
-    def createNode(self, typeNode, nameNode):
+    def createNode(self, typeNode, nameNode, tfidf = 0):
         if (typeNode == "firts_word"):
             with self._driver.session() as session:
-                response = session.write_transaction(self._create_firts_word, nameNode)
+                response = session.write_transaction(self._create_firts_word, nameNode, tfidf)
                 print(response)
 
         if (typeNode == "second_word"):
@@ -34,41 +35,91 @@ class DataBaseManageer(object):
         
     # @word: campo name del nodo q se busca
     # @return: lista de nodos adyacentes, caracteristicas
-    def findNodes(self, word):
-        with self._driver.session() as session:
-            print(session.read_transaction(self._match_second_word, word))
+    def findNodes(self, typeNode, word):
+        if (typeNode == "firts_word"):
+            with self._driver.session() as session:
+                print(session.read_transaction(self._match_second_word, word))
+        if (typeNode == "second_word"):
+            with self._driver.session() as session:
+                print(session.read_transaction(self._match_firts_word, word))
 
-    def createLink(self, firtsWord, secondWord):
+    def createLink(self, firtsWord, secondWord, tfidf):
         with self._driver.session() as session:
-            session.write_transaction(self._create_link, firtsWord, secondWord)
+            response = session.write_transaction(self._create_link, firtsWord, secondWord, tfidf)
+            print(response)
 
     @staticmethod
-    def _create_firts_word(tx, nameNode):
-        return tx.run("MERGE (a:firts_word{name: $name})"
-                      "RETURN a", name=nameNode).single()
+    def _create_firts_word(tx, nameNode, tfidf):
+        try:
+            tx.run("MERGE (a:firts_word{name: $name})"
+                   "ON CREATE SET a.tfidf = $tfidf "
+                   "ON MATCH SET a.tfidf = a.tfidf",
+                   name=nameNode, tfidf=tfidf)
+            return nameNode + " creado"
+        except expression as identifier:
+            return "erro creando : " + nameNode
+        
     
     @staticmethod
     def _create_second_word(tx, nameNode):
-        return tx.run("MERGE (a:second_word{name: $name})"
-                      "RETURN a", name=nameNode).single()
+        try:
+            tx.run("MERGE (a:second_word{name: $name})",
+                   name=nameNode)
+            return nameNode + " creado"
+        except expression as identifier:
+            return "error creando : " + nameNode
 
     @staticmethod
-    def _create_link(tx, firtsName, secondName):
-        return tx.run("MATCH (a:firts_word{name: $firts_name}),(b:second_word{name: $second_name})"
-                      "MERGE (a)-[r:x]->(b)", firts_name=firtsName, second_name=secondName)
+    def _create_link(tx, firtsName, secondName, tfidf):
+        try:
+            tx.run("MATCH (a:firts_word{name: $firts_name}),(b:second_word{name: $second_name}) "
+                   "MERGE (a)-[r:x]->(b) "
+                   "ON CREATE SET r.tfidf = $tfidf "
+                   "ON MATCH SET r.tfidf = r.tfidf",
+                   firts_name=firtsName, second_name=secondName, tfidf=tfidf)
+            return "link creado : " + firtsName + secondName
+        except expression as identifier:
+            return "error link : " + firtsName + secondName
 
     @staticmethod
     def _match_second_word(tx, firtsWord):
-        result = tx.run("MATCH (a:firts_word{name: $name})"
-                        "MATCH p=(a)-[r:x]->(b)"
-                        "RETURN b.name ORDER BY b.name", name=firtsWord)
-        return [record["b.name"] for record in result]
+        try:
+            result = tx.run("MATCH (a:firts_word{name: $name})"
+                            "MATCH p=(a)-[r:x]->(b)"
+                            "RETURN b.name, r.tfidf ORDER BY b.name", name=firtsWord)
+            finalResult = []
+            for record in result:
+                finalResult.append({"name": record["b.name"], "tfidf": record["r.tfidf"]})
+            return finalResult
+        except expression as identifier:
+            print("error match : " + firtsWord)
+            return []
+
+    @staticmethod
+    def _match_firts_word(tx, secondWord):
+        try:
+            result = tx.run("MATCH (a:second_word{name: $name})"
+                            "MATCH p=(b)-[r:x]->(a)"
+                            "RETURN b.name ORDER BY b.name", name=secondWord)
+            finalResult = []
+            for record in result:
+                finalResult.append({"name": record["b.name"]})            
+            return finalResult
+        except expression as identifier:
+            print("error match : " + secondWord)
+            return []
+        
 
 db = DataBaseManageer()
-# db.createNode("firts_word", "gato")
+# db.createNode("firts_word", "gato" , 15)
+# db.createNode("firts_word", "perro" , 20)
 # db.createNode("second_word", "ladra")
+# db.createNode("second_word", "maulla")
+# db.createNode("second_word", "come")
 # db.findNodes("perro")
-# db.createLink("perro", "ladra")
-# db.createLink("perro", "come")
-# db.createLink("gato", "come")
-db.findNodes("perro")
+# db.createLink("perro", "ladra", 9)
+# db.createLink("perro", "come", 9)
+# db.createLink("gato", "come", 9)
+# db.createLink("gato", "maulla", 6)
+db.findNodes("firts_word", "gato")
+# db.findNodes("second_word", "come")
