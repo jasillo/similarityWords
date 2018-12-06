@@ -2,7 +2,7 @@ from neo4j.v1 import GraphDatabase
 import json
 import math
 
-class DataBaseManageer(object):
+class DataBaseManager(object):
     uri = "bolt://localhost:7687"
     user = "neo4j"
     password = "123456"
@@ -58,38 +58,30 @@ class DataBaseManageer(object):
     def similarity(self, word):
         wordTfidf = self.getTfidf(word)
         wordLinks = self.findNodes("firts_word", word)
-        arrayWords = []
+        dict_words = {}
         for item in wordLinks:
-            print(item)
-            print(self.explicitSimilarity(item["name"], wordLinks))
+            self.explicitSimilarity(item["name"], item["tfidf"], word, dict_words)
+        for key in dict_words:
+            print(key + " : ")
+            print(dict_words[key]["links_tf"] / math.sqrt(wordTfidf * dict_words[key]["word_tf"]) )
+            
 
     # @word: palabra buscada
     # @links: filtro de los links a devolver
-    def explicitSimilarity(self, word, links):
-        wordLinks = self.findNodes("second_word", word)
+    def explicitSimilarity(self, second_word, second_word_tf, firts_word, dict_words):
+        wordLinks = self.findNodes("second_word", second_word)
         result = []
         for item in wordLinks:
             anotherWord = item["name"]
-            if anotherWord == word:
+            if anotherWord == firts_word:
                 continue
-            anotherWordTfidf = self.getTfidf(item["name"])
-            anotherWordLinks = self.findNodes("firts_word", anotherWord)
-            print(anotherWordLinks)
-    
+            
 
-        x = 0
-        y = 0
-        result = 0
-        # while( x < len(links) and y < len(wordLinks) ):
-        #     if (links[x]["name"] == wordLinks[y]["name"]):
-        #         result += links[x]["tfidf"] * wordLinks[y]["tfidf"]
-        #         x += 1
-        #         y += 1
-        #     elif (vector1[x] < vector2[y]):
-        #         x += 1
-        #     else:
-        #         y += 1
-        return math.sqrt(result)
+            if anotherWord in dict_words:
+                dict_words[anotherWord]["links_tf"] += second_word_tf * item["tfidf"]
+            else:
+                another_word_tf = self.getTfidf(anotherWord)
+                dict_words[anotherWord] = {"word_tf": another_word_tf, "links_tf": second_word_tf * item["tfidf"]}
 
     @staticmethod
     def _create_firts_word(tx, nameNode, tfidf):
@@ -166,7 +158,7 @@ class DataBaseManageer(object):
             print("error rfidf")
         
 
-db = DataBaseManageer()
+db = DataBaseManager()
 
 # db.createNode("firts_word", "gato" , 17.320508076)
 # db.createNode("firts_word", "perro" , 15.874507866)
@@ -196,4 +188,4 @@ db = DataBaseManageer()
 # db.createLink("canario", "graznida", 10)
 # db.createLink("canario", "pequeno", 10)
 
-db.similarity("perro")
+db.similarity("canario")
