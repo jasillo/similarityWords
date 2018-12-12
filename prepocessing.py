@@ -9,6 +9,7 @@ from nltk.stem import PorterStemmer
 import json
 import string
 import math
+import time
 
 class Preprocessing:
     dictEnglish = enchant.Dict("en_US")
@@ -18,11 +19,16 @@ class Preprocessing:
     totalDocsTF = 0
     dictionaryIDF = {}
     umbral = 0.5
+    
+    maxtfidf = 0.0
+    mintfidf = 100000.0
+    total = 0
+    sumatoria = 0
 
-    files = ["TFIDF/2gm-0006", "TFIDF/2gm-0007", "TFIDF/2gm-0008","TFIDF/2gm-0009", "TFIDF/2gm-0010","TFIDF/2gm-0011",
-        "TFIDF/2gm-0012", "TFIDF/2gm-0013", "TFIDF/2gm-0014", "TFIDF/2gm-0015", "TFIDF/2gm-0016", "TFIDF/2gm-0017", "TFIDF/2gm-0018",
-        "TFIDF/2gm-0019", "TFIDF/2gm-0020", "TFIDF/2gm-0021", "TFIDF/2gm-0022", "TFIDF/2gm-0023", "TFIDF/2gm-0024", "TFIDF/2gm-0025",
-        "TFIDF/2gm-0026", "TFIDF/2gm-0027", "TFIDF/2gm-0028", "TFIDF/2gm-0029", "TFIDF/2gm-0030", "TFIDF/2gm-0031"]
+    files = ["2gm-0006", "2gm-0007", "2gm-0008","2gm-0009", "2gm-0010","2gm-0011",
+        "2gm-0012", "2gm-0013", "2gm-0014", "2gm-0015", "2gm-0016", "2gm-0017", "2gm-0018",
+        "2gm-0019", "2gm-0020", "2gm-0021", "2gm-0022", "2gm-0023", "2gm-0024", "2gm-0025",
+        "2gm-0026", "2gm-0027", "2gm-0028", "2gm-0029", "2gm-0030", "2gm-0031"]
 
     def process(self, url):
         page = self.readUrl(url)
@@ -60,7 +66,7 @@ class Preprocessing:
         return wordMap
 
     def isEnglishEnchant(self, word):
-        return dictEnglish.check(word)
+        return self.dictEnglish.check(word)
 
     def isEnglishWordNet(self, word):
         if not wordnet.synsets( word ):
@@ -87,17 +93,23 @@ class Preprocessing:
     def isValidWord(self, word: string):
         if (not word.isalpha()):
             return False
+        if (not self.isEnglishEnchant(word)):
+            return False
         if (not self.isEnglishWordNet(word)):
             return False
         if (self.isStopWord(word)):
             return False
         return True
         
-    def cleanData(self, fileIn, fileOut):
-        print(fileIn)
+    def cleanData(self):
+        for my_file in self.files:
+            self.cleanDataFile(my_file)
+
+    def cleanDataFile(self, file):
+        print(file)
         try:  
-            fpIn = open(fileIn, "r")
-            fpOut = open(fileOut, "w")
+            fpIn = open("data/CorpusGoogle/" + file, "r")
+            fpOut = open("data/CorpusClean/" + file, "w")
             line = fpIn.readline().lower()
             while (line):
                 words = line.split()
@@ -119,16 +131,21 @@ class Preprocessing:
         for freq in frequency:
             IDF.append(math.log2(total/freq))
 
-    def generateDF(self, fileIn, fileOut):
-        print(fileIn)
+    def generateTF(self):
+        for my_file in self.files:
+            self.generateDF(my_file)
+        self.saveMetaTF()
+
+    def generateDF(self, file):
+        print(file)
         max = 1
         prevWord = '' #docID
         features = []
         freq = []
         toralDocs = 0
-        try:  
-            fpIn = open(fileIn, "r")
-            fpOut = open(fileOut, "w")
+        try: 
+            fpIn = open("data/CorpusClean/" + file, "r")
+            fpOut = open("data/TF/" + file, "w")
             line = fpIn.readline()
             while (line):
                 max = 1
@@ -152,14 +169,14 @@ class Preprocessing:
                 for feat in features:
                     fpOut.write(feat + " " + str(TF[index]) + "\n")
                     index += 1
-            self.metaTF.append(fileOut + " " + str(toralDocs))
+            self.metaTF.append("data/TF/" + file + " " + str(toralDocs))
         finally:
             fpIn.close()
             fpOut.close()
 
     def saveMetaTF(self):
         try:
-            meta = open("TF/meta", "w")
+            meta = open("data/TF/meta", "w")
             for item in self.metaTF:
                 meta.write(item + "\n")
         finally:
@@ -167,7 +184,7 @@ class Preprocessing:
 
     def readMetaTF(self):
         try:
-            meta = open("TF/meta", "r")
+            meta = open("data/TF/meta", "r")
             line = meta.readline()
             words = line.split()
             while(line):
@@ -176,14 +193,20 @@ class Preprocessing:
                     self.totalDocsTF += tam 
                 line = meta.readline()
                 words = line.split()
-            print(self.totalDocsTF)
+            # print(self.totalDocsTF)
         finally:
             meta.close
 
-    def generateDictionaryIDF(self, fileIn):
-        print(fileIn)
+    def generateDictionaryIDF(self):
+        self.readMetaTF()
+        for my_file in self.files:
+            self.generateDictionaryIDFFile(my_file)
+        self.saveDictionaryIDF()
+
+    def generateDictionaryIDFFile(self, file):
+        print(file)
         try:
-            fpIn = open(fileIn, "r")
+            fpIn = open("data/CorpusClean/" + file, "r")
             line = fpIn.readline()
             words = line.split()
             while (line):
@@ -198,7 +221,7 @@ class Preprocessing:
 
     def saveDictionaryIDF(self):
         try:
-            fpOut = open("IDF/dictionary", "w")
+            fpOut = open("data/IDF/dictionary", "w")
             for key, value in self.dictionaryIDF.items():
                 idf = math.log2(self.totalDocsTF / value)
                 fpOut.write(key + " " + str(idf) + "\n")
@@ -207,7 +230,7 @@ class Preprocessing:
 
     def loadDicionaryIDF(self):
         try:
-            fpIn = open("IDF/dictionary", "r")
+            fpIn = open("data/IDF/dictionary", "r")
             line = fpIn.readline()
             words = line.split()
             while(line):
@@ -217,11 +240,16 @@ class Preprocessing:
         finally:
             fpIn.close()
 
-    def generateTFIDF(self, fileIn, fileOut):
-        print(fileIn)
+    def generateTFIDF(self): 
+        self.loadDicionaryIDF()
+        for my_file in self.files:
+            self.generateTFIDFFile(my_file)
+
+    def generateTFIDFFile(self, file):
+        print(file)
         try:
-            fpIn = open(fileIn, "r")
-            fpOut = open(fileOut, "w")
+            fpIn = open("data/TF/" + file, "r")
+            fpOut = open("data/TFIDF/" + file, "w")
             head = fpIn.readline()
             headSplit = head.split()
             while(head):
@@ -269,7 +297,7 @@ class Preprocessing:
     def findInAll(self, word, vector, weigth):
         for item in self.files:
             print("buscando en " + item + " ...")
-            res = self.find(word, item, vector, weigth)
+            res = self.find(word, "data/TFIDF/" + item, vector, weigth)
             if ( res == True ):
                 return True
         return False
@@ -323,130 +351,141 @@ class Preprocessing:
     def getSimilarInAll(self, vector, weigth, vectorRes, similarRes):
         for item in self.files:
             print("comparando en " + item + " ...")
-            preprocessing.calculateSimilitude(item, vector, pesos, vectorRes, similarRes)
+            preprocessing.calculateSimilitude("data/TFIDF/" + item, vector, pesos, vectorRes, similarRes)
 
+    def createData(self, type):
+        if (type == "firts_word"):
+            for my_file in self.files:
+                self.dataFirtsNode(my_file)
+        if (type == "second_word"):
+            self.dataSecondNode()
+        if (type == "link"):
+            for my_file in self.files:
+                self.dataLinksNode(my_file)
+
+
+    def dataFirtsNode(self, file):
+        print(file)
+        try:
+            fpIn = open("data/TFIDF/" + file, "r")
+            fpOut = open("data/node_one/" + file + ".csv", "w")
+            fpOut.write("name,tfidf\n")
+            head = fpIn.readline()
+            headSplit = head.split()
+            while(head):
+                tam = int(headSplit[1])
+                weight = 0.0
+                while(tam > 0):
+                    line = fpIn.readline()
+                    words = line.split()
+                    if (float(words[1]) >= 0.1):
+                        weight += float(words[1]) * float(words[1])
+                    tam -= 1
+                fpOut.write(headSplit[0] + "," + str(math.sqrt(weight)) + "\n")
+                head = fpIn.readline()
+                headSplit = head.split()
+        except:
+            print("error en " + file)
+        finally:
+            fpIn.close()
+            fpOut.close()
+
+    def dataSecondNode(self):
+        try:
+            fpIn = open("data/IDF/dictionary", "r")
+            fpOut = open("data/node_two/seconds.csv", "w")
+            fpOut.write("name\n")
+            head = fpIn.readline()
+            headSplit = head.split()
+            while(head):
+                fpOut.write(headSplit[0] + "\n")
+                head = fpIn.readline()
+                headSplit = head.split()
+        except expression as identifier:
+            print('error en ' + file)
+        finally:
+            fpIn.close()
+            fpOut.close()
+
+    def dataLinksNode(self, file):
+        print(file)
+        try:
+            fpIn = open("data/TFIDF/" + file, "r")
+            fpOut = open("data/links/" + file + ".csv", "w")
+            fpOut.write("node_one,tfidf,node_two\n")
+            head = fpIn.readline()
+            headSplit = head.split()
+            while(head):
+                tam = int(headSplit[1])
+                while(tam > 0):
+                    line = fpIn.readline()
+                    words = line.split()
+                    if (float(words[1]) >= 0.1):
+                        fpOut.write(headSplit[0] + "," + words[1] + "," + words[0] + "\n")
+                    tam -= 1
+                head = fpIn.readline()
+                headSplit = head.split()
+        except:
+            print("error en " + file)
+        finally:
+            fpIn.close()
+            fpOut.close()
+
+    def statistics(self):
+        for my_file in self.files:
+            self.statisticsFile(my_file)
+        fpOut = open("statistics", "w")
+        fpOut.write("min: " + str(self.mintfidf) + "\n")
+        fpOut.write("max: " + str(self.maxtfidf) + "\n")
+        fpOut.write("total: " + str(self.total) + "\n")
+        fpOut.write("media: " + str((self.maxtfidf + self.mintfidf) / 2.0) + "\n")
+        fpOut.write("promedio: " + str(self.sumatoria / self.total) + "\n")
+        fpOut.close()
+            
+
+    def statisticsFile(self, file):
+        print(file)
+        try:
+            fpIn = open("data/TFIDF/" + file, "r")
+            head = fpIn.readline()
+            headSplit = head.split()
+            while(head):
+                tam = int(headSplit[1])
+                self.total += tam
+                while(tam > 0):
+                    line = fpIn.readline()
+                    words = line.split()
+                    weight = float(words[1])
+                    if (weight > self.maxtfidf):
+                        self.maxtfidf = weight
+                    if (weight < self.mintfidf):
+                        self.mintfidf = weight
+                    self.sumatoria += weight
+                    tam -= 1
+                head = fpIn.readline()
+                headSplit = head.split()
+        except:
+            print("error en " + file)
+        finally:
+            fpIn.close()    
 
 preprocessing = Preprocessing()
 
 """ codigo para limpiar la data"""
-# preprocessing.cleanData("CorpusGoogle/2gm-0006", "Corpus/2gm-0006")
-# preprocessing.cleanData("CorpusGoogle/2gm-0007", "Corpus/2gm-0007")
-# preprocessing.cleanData("CorpusGoogle/2gm-0008", "Corpus/2gm-0008")
-# preprocessing.cleanData("CorpusGoogle/2gm-0009", "Corpus/2gm-0009")
-# preprocessing.cleanData("CorpusGoogle/2gm-0010", "Corpus/2gm-0010")
-# preprocessing.cleanData("CorpusGoogle/2gm-0011", "Corpus/2gm-0011")
-# preprocessing.cleanData("CorpusGoogle/2gm-0012", "Corpus/2gm-0012")
-# preprocessing.cleanData("CorpusGoogle/2gm-0013", "Corpus/2gm-0013")
-# preprocessing.cleanData("CorpusGoogle/2gm-0014", "Corpus/2gm-0014")
-# preprocessing.cleanData("CorpusGoogle/2gm-0015", "Corpus/2gm-0015")
-# preprocessing.cleanData("CorpusGoogle/2gm-0016", "Corpus/2gm-0016")
-# preprocessing.cleanData("CorpusGoogle/2gm-0017", "Corpus/2gm-0017")
-# preprocessing.cleanData("CorpusGoogle/2gm-0018", "Corpus/2gm-0018")
-# preprocessing.cleanData("CorpusGoogle/2gm-0019", "Corpus/2gm-0019")
-# preprocessing.cleanData("CorpusGoogle/2gm-0020", "Corpus/2gm-0020")
-# preprocessing.cleanData("CorpusGoogle/2gm-0021", "Corpus/2gm-0021")
-# preprocessing.cleanData("CorpusGoogle/2gm-0022", "Corpus/2gm-0022")
-# preprocessing.cleanData("CorpusGoogle/2gm-0023", "Corpus/2gm-0023")
-# preprocessing.cleanData("CorpusGoogle/2gm-0024", "Corpus/2gm-0024")
-# preprocessing.cleanData("CorpusGoogle/2gm-0025", "Corpus/2gm-0025")
-# preprocessing.cleanData("CorpusGoogle/2gm-0026", "Corpus/2gm-0026")
-# preprocessing.cleanData("CorpusGoogle/2gm-0027", "Corpus/2gm-0027")
-# preprocessing.cleanData("CorpusGoogle/2gm-0028", "Corpus/2gm-0028")
-# preprocessing.cleanData("CorpusGoogle/2gm-0029", "Corpus/2gm-0029")
-# preprocessing.cleanData("CorpusGoogle/2gm-0030", "Corpus/2gm-0030")
-# preprocessing.cleanData("CorpusGoogle/2gm-0031", "Corpus/2gm-0031")
-
+# preprocessing.cleanData()
 
 """ codigo para generar DFs """
-# preprocessing.generateDF("Corpus/2gm-0006", "TF/2gm-0006")
-# preprocessing.generateDF("Corpus/2gm-0007", "TF/2gm-0007")
-# preprocessing.generateDF("Corpus/2gm-0008", "TF/2gm-0008")
-# preprocessing.generateDF("Corpus/2gm-0009", "TF/2gm-0009")
-# preprocessing.generateDF("Corpus/2gm-0010", "TF/2gm-0010")
-# preprocessing.generateDF("Corpus/2gm-0011", "TF/2gm-0011")
-# preprocessing.generateDF("Corpus/2gm-0012", "TF/2gm-0012")
-# preprocessing.generateDF("Corpus/2gm-0013", "TF/2gm-0013")
-# preprocessing.generateDF("Corpus/2gm-0014", "TF/2gm-0014")
-# preprocessing.generateDF("Corpus/2gm-0015", "TF/2gm-0015")
-# preprocessing.generateDF("Corpus/2gm-0016", "TF/2gm-0016")
-# preprocessing.generateDF("Corpus/2gm-0017", "TF/2gm-0017")
-# preprocessing.generateDF("Corpus/2gm-0018", "TF/2gm-0018")
-# preprocessing.generateDF("Corpus/2gm-0019", "TF/2gm-0019")
-# preprocessing.generateDF("Corpus/2gm-0020", "TF/2gm-0020")
-# preprocessing.generateDF("Corpus/2gm-0021", "TF/2gm-0021")
-# preprocessing.generateDF("Corpus/2gm-0022", "TF/2gm-0022")
-# preprocessing.generateDF("Corpus/2gm-0023", "TF/2gm-0023")
-# preprocessing.generateDF("Corpus/2gm-0024", "TF/2gm-0024")
-# preprocessing.generateDF("Corpus/2gm-0025", "TF/2gm-0025")
-# preprocessing.generateDF("Corpus/2gm-0026", "TF/2gm-0026")
-# preprocessing.generateDF("Corpus/2gm-0027", "TF/2gm-0027")
-# preprocessing.generateDF("Corpus/2gm-0028", "TF/2gm-0028")
-# preprocessing.generateDF("Corpus/2gm-0029", "TF/2gm-0029")
-# preprocessing.generateDF("Corpus/2gm-0030", "TF/2gm-0030")
-# preprocessing.generateDF("Corpus/2gm-0031", "TF/2gm-0031")
-# preprocessing.saveMetaTF()
+# preprocessing.generateTF()
 
 """ codigo para generar diccionario IDF """
-# preprocessing.readMetaTF()
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0006")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0007")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0008")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0009")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0010")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0011")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0012")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0013")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0014")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0015")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0016")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0017")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0018")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0019")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0020")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0021")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0022")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0023")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0024")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0025")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0026")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0027")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0028")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0029")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0030")
-# preprocessing.generateDictionaryIDF("Corpus/2gm-0031")
-# preprocessing.saveDictionaryIDF()
+# preprocessing.generateDictionaryIDF()
 
 """ generar tabla TFIDF """
-# preprocessing.loadDicionaryIDF()
-# preprocessing.generateTFIDF("TF/2gm-0006", "TFIDF/2gm-0006")
-# preprocessing.generateTFIDF("TF/2gm-0007", "TFIDF/2gm-0007")
-# preprocessing.generateTFIDF("TF/2gm-0008", "TFIDF/2gm-0008")
-# preprocessing.generateTFIDF("TF/2gm-0009", "TFIDF/2gm-0009")
-# preprocessing.generateTFIDF("TF/2gm-0010", "TFIDF/2gm-0010")
-# preprocessing.generateTFIDF("TF/2gm-0011", "TFIDF/2gm-0011")
-# preprocessing.generateTFIDF("TF/2gm-0012", "TFIDF/2gm-0012")
-# preprocessing.generateTFIDF("TF/2gm-0013", "TFIDF/2gm-0013")
-# preprocessing.generateTFIDF("TF/2gm-0014", "TFIDF/2gm-0014")
-# preprocessing.generateTFIDF("TF/2gm-0015", "TFIDF/2gm-0015")
-# preprocessing.generateTFIDF("TF/2gm-0016", "TFIDF/2gm-0016")
-# preprocessing.generateTFIDF("TF/2gm-0017", "TFIDF/2gm-0017")
-# preprocessing.generateTFIDF("TF/2gm-0018", "TFIDF/2gm-0018")
-# preprocessing.generateTFIDF("TF/2gm-0019", "TFIDF/2gm-0019")
-# preprocessing.generateTFIDF("TF/2gm-0020", "TFIDF/2gm-0020")
-# preprocessing.generateTFIDF("TF/2gm-0021", "TFIDF/2gm-0021")
-# preprocessing.generateTFIDF("TF/2gm-0022", "TFIDF/2gm-0022")
-# preprocessing.generateTFIDF("TF/2gm-0023", "TFIDF/2gm-0023")
-# preprocessing.generateTFIDF("TF/2gm-0024", "TFIDF/2gm-0024")
-# preprocessing.generateTFIDF("TF/2gm-0025", "TFIDF/2gm-0025")
-# preprocessing.generateTFIDF("TF/2gm-0026", "TFIDF/2gm-0026")
-# preprocessing.generateTFIDF("TF/2gm-0027", "TFIDF/2gm-0027")
-# preprocessing.generateTFIDF("TF/2gm-0028", "TFIDF/2gm-0028")
-# preprocessing.generateTFIDF("TF/2gm-0029", "TFIDF/2gm-0029")
-# preprocessing.generateTFIDF("TF/2gm-0030", "TFIDF/2gm-0030")
-# preprocessing.generateTFIDF("TF/2gm-0031", "TFIDF/2gm-0031")
+# preprocessing.generateTFIDF()
 
 
 """ buscador """
+start_time = time.time()
 vector = []
 pesos = []
 preprocessing.findInAll("god", vector, pesos)
@@ -467,4 +506,11 @@ if (len(vector) > 0):
         index += 1
 else:
     print("NO ENCONTRADO -_-")
+elapsed_time = time.time() - start_time
+print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
+# preprocessing.statistics()
+
+# preprocessing.createData('firts_word')
+# preprocessing.createData('second_word')
+# preprocessing.createData('link')

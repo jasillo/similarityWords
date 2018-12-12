@@ -1,6 +1,7 @@
 from neo4j.v1 import GraphDatabase
 import json
 import math
+import time
 
 class DataBaseManager(object):
     uri = "bolt://localhost:7687"
@@ -56,19 +57,30 @@ class DataBaseManager(object):
             return response
 
     def similarity(self, word):
+        start_time = time.time()
         wordTfidf = self.getTfidf(word)
         wordLinks = self.findNodes("firts_word", word)
+        print(word + " tiene " + str(len(wordLinks)) + " conecciones. ")
         dict_words = {}
         for item in wordLinks:
             self.explicitSimilarity(item["name"], item["tfidf"], word, dict_words)
+        finalDict = {}
         for key in dict_words:
-            print(key + " : ")
-            print(dict_words[key]["links_tf"] / math.sqrt(wordTfidf * dict_words[key]["word_tf"]) )
+            finalDict[key] = float(dict_words[key]["links_tf"]) / math.sqrt(float(wordTfidf) * float(dict_words[key]["word_tf"]))
+            # print( key + " : " + str( finalDict[key] ))
+        listofTuples = sorted(finalDict.items() , reverse=False, key=lambda x: x[1])
+        for elem in listofTuples :
+            print(elem[0] , " : " , elem[1] )
+        print("total : " + str(len(listofTuples)) )
+        elapsed_time = time.time() - start_time
+        # print ("tiempo transcurrido : " + str(elapsed_time))
+        print(time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
             
 
     # @word: palabra buscada
     # @links: filtro de los links a devolver
     def explicitSimilarity(self, second_word, second_word_tf, firts_word, dict_words):
+        print(" coneccion " + second_word)
         wordLinks = self.findNodes("second_word", second_word)
         result = []
         for item in wordLinks:
@@ -78,10 +90,14 @@ class DataBaseManager(object):
             
 
             if anotherWord in dict_words:
-                dict_words[anotherWord]["links_tf"] += second_word_tf * item["tfidf"]
+                # print(second_word_tf)
+                # print(item["tfidf"])
+                dict_words[anotherWord]["links_tf"] += float(second_word_tf) * float(item["tfidf"])
             else:
                 another_word_tf = self.getTfidf(anotherWord)
-                dict_words[anotherWord] = {"word_tf": another_word_tf, "links_tf": second_word_tf * item["tfidf"]}
+                # print(second_word_tf)
+                # print(item["tfidf"])
+                dict_words[anotherWord] = {"word_tf": another_word_tf, "links_tf": float(second_word_tf) * float(item["tfidf"])}
 
     @staticmethod
     def _create_firts_word(tx, nameNode, tfidf):
@@ -188,4 +204,4 @@ db = DataBaseManager()
 # db.createLink("canario", "graznida", 10)
 # db.createLink("canario", "pequeno", 10)
 
-db.similarity("canario")
+db.similarity("god")
